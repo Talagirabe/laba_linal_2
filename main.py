@@ -50,5 +50,18 @@ def run_base_training():
     print(f"График успешно сохранен: {filepath}")
 
 
+from data_utils import get_prepared_data, accuracy
+from perceptron import Perceptron
+
 if __name__ == "__main__":
-    run_base_training()
+    X_train, X_test, y_train, y_test = get_prepared_data()
+
+    print("Запуск базовой модели...")
+    model = Perceptron(n_features=2)
+    model.fit(X_train, y_train, X_test, y_test, epochs=100, lr=0.1, batch_size=32)
+
+    train_acc = accuracy(y_train, model.predict(X_train))
+    test_acc = accuracy(y_test, model.predict(X_test))
+
+    print(f"Точность (Train): {train_acc:.4f}")
+    print(f"Точность (Test): {test_acc:.4f}")
