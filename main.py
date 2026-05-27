@@ -1,67 +1,73 @@
-import os
 import numpy as np
-import matplotlib.pyplot as plt
 from data_utils import get_prepared_data, accuracy
 from perceptron import Perceptron
 
 
-def run_base_training():
-    # Создаем папку для графиков, если её еще нет
-    os.makedirs('plots', exist_ok=True)
+# Функция для бонусного задания: K-Fold Кросс-валидация
+def run_k_fold(X, y, k=5):
+    print(f"\n--- Бонус: {k}-Fold Кросс-валидация ---")
+    fold_size = len(X) // k
+    accuracies = []
 
-    X_train, X_test, y_train, y_test = get_prepared_data()
+    for i in range(k):
+        start, end = i * fold_size, (i + 1) * fold_size
+        X_val = X[start:end]
+        y_val = y[start:end]
 
-    print("--- БАЗОВОЕ ОБУЧЕНИЕ ---")
-    model = Perceptron(n_features=2, init_type='small')
-    train_loss, val_loss = model.fit(X_train, y_train, X_test, y_test, epochs=100, lr=0.1, batch_size=32)
+        # Собираем обучающую выборку из оставшихся блоков
+        X_train = np.concatenate((X[:start], X[end:]), axis=0)
+        y_train = np.concatenate((y[:start], y[end:]), axis=0)
 
-    train_acc = accuracy(y_train, model.predict(X_train))
-    test_acc = accuracy(y_test, model.predict(X_test))
-    print(f"Точность на обучающей выборке: {train_acc:.4f}")
-    print(f"Точность на тестовой выборке: {test_acc:.4f}")
+        # Обучаем модель на текущем фолде
+        model = Perceptron(n_features=2)
+        model.fit(X_train, y_train, X_val, y_val, epochs=100, lr=0.1, batch_size=16)
 
-    # Визуализация
-    plt.figure(figsize=(12, 5))
+        # Считаем точность
+        acc = accuracy(y_val, model.predict(X_val))
+        accuracies.append(acc)
+        print(f"Фолд {i + 1}: Точность = {acc * 100:.2f}%")
 
-    plt.subplot(1, 2, 1)
-    plt.plot(train_loss, label='Train Loss')
-    plt.plot(val_loss, label='Validation Loss')
-    plt.title('Кривая обучения')
-    plt.xlabel('Эпоха')
-    plt.ylabel('Loss (BCE)')
-    plt.legend()
-
-    plt.subplot(1, 2, 2)
-    plt.scatter(X_test[:, 0], X_test[:, 1], c=y_test, cmap='bwr', alpha=0.7)
-    x_values = np.array([np.min(X_test[:, 0]), np.max(X_test[:, 0])])
-    y_values = -(model.w[0] * x_values + model.b) / model.w[1]
-    plt.plot(x_values, y_values, color='black', label='Decision Boundary')
-    plt.title('Разделяющая граница')
-    plt.xlabel('Признак 1')
-    plt.ylabel('Признак 2')
-    plt.legend()
-
-    plt.tight_layout()
-
-    # СОХРАНЕНИЕ ГРАФИКА
-    filepath = 'plots/base_training.png'
-    plt.savefig(filepath, dpi=300)  # dpi=300 для высокого качества
-    plt.close()  # Закрываем фигуру, чтобы освободить память
-    print(f"График успешно сохранен: {filepath}")
+    print(f"Средняя точность (CV): {np.mean(accuracies) * 100:.2f}%")
 
 
-from data_utils import get_prepared_data, accuracy
-from perceptron import Perceptron
+# Функция для тестирования разных датасетов
+def test_dataset(dataset_name):
+    X_train, X_test, y_train, y_test = get_prepared_data(dataset_type=dataset_name)
+    model = Perceptron(n_features=2)
+    model.fit(X_train, y_train, X_test, y_test, epochs=100, lr=0.1, batch_size=16)
+    return accuracy(y_test, model.predict(X_test))
+
 
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = get_prepared_data()
+    print("=== ЗАПУСК ЛАБОРАТОРНОЙ РАБОТЫ №1 ===")
 
-    print("Запуск базовой модели...")
-    model = Perceptron(n_features=2)
-    model.fit(X_train, y_train, X_test, y_test, epochs=100, lr=0.1, batch_size=32)
+    # 1. Базовое обучение
+    X_train, X_test, y_train, y_test = get_prepared_data("standard")
+    print("\n--- 1. Базовая модель ---")
+    base_model = Perceptron(n_features=2)
+    base_model.fit(X_train, y_train, X_test, y_test, epochs=100, lr=0.1, batch_size=32)
+    print(f"Точность (Train): {accuracy(y_train, base_model.predict(X_train)) * 100:.2f}%")
+    print(f"Точность (Test): {accuracy(y_test, base_model.predict(X_test)) * 100:.2f}%")
 
-    train_acc = accuracy(y_train, model.predict(X_train))
-    test_acc = accuracy(y_test, model.predict(X_test))
+    # 2. Кросс-валидация
+    # Для кросс-валидации объединяем все данные обратно в один массив
+    X_all = np.concatenate((X_train, X_test), axis=0)
+    y_all = np.concatenate((y_train, y_test), axis=0)
+    run_k_fold(X_all, y_all, k=5)
 
-    print(f"Точность (Train): {train_acc:.4f}")
-    print(f"Точность (Test): {test_acc:.4f}")
+    # 3. Тесты нелинейности (Доказательство для защиты)
+    print("\n--- 2. Тесты архитектуры на 3 датасетах ---")
+
+    acc_linear = test_dataset("standard")
+    print(f"Линейный датасет (Linear): Точность = {acc_linear * 100:.1f}%")
+
+    acc_xor = test_dataset("xor")
+    print(f"Датасет XOR (Исключающее ИЛИ): Точность = {acc_xor * 100:.1f}%")
+
+    acc_circle = test_dataset("circle")
+    print(f"Датасет Окружность (Circle): Точность = {acc_circle * 100:.1f}%\n")
+
+    print("=== ИТОГОВЫЙ ВЫВОД ===")
+    print("Однослойный перцептрон способен строить только прямые линии.")
+    print("Для решения нелинейных задач (XOR и Circle) абсолютно необходимо")
+    print("использование многослойных сетей (скрытых слоев).")
